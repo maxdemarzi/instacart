@@ -38,7 +38,7 @@ Load Data:
         
         USING PERIODIC COMMIT
         LOAD CSV WITH HEADERS FROM 'file:///products.csv' AS csvLine
-        CREATE (p:Product {id: toInteger(csvLine.product_id), name:csvLine.product});
+        CREATE (p:Product {id: toInteger(csvLine.product_id), name:csvLine.product_name});
         
         USING PERIODIC COMMIT
         LOAD CSV WITH HEADERS FROM 'file:///products.csv' AS csvLine
