@@ -69,4 +69,12 @@ Load Data:
         MATCH  (o:Order {id: toInteger(csvLine.order_id)}), (po:Order {user_id: toInteger(csvLine.user_id), number: toInteger(csvLine.order_number) - 1})
         CREATE (o)-[:PREV]->(po)
         
-        //order_id,user_id,eval_set,order_number,order_dow,order_hour_of_day,days_since_prior_order
+        USING PERIODIC COMMIT
+        LOAD CSV WITH HEADERS FROM 'file:///order_products__prior.csv' AS csvLine
+        MATCH  (o:Order {id: toInteger(csvLine.order_id)}), (p:Product {id: toInteger(csvLine.product_id)})
+        CREATE (o)-[:HAS {order: toInteger(csvLine.add_to_cart_order), reordered: toBoolean(csvLine.reordered)} ]->(p)
+        
+        USING PERIODIC COMMIT
+        LOAD CSV WITH HEADERS FROM 'file:///order_products__train.csv' AS csvLine
+        MATCH  (o:Order {id: toInteger(csvLine.order_id)}), (p:Product {id: toInteger(csvLine.product_id)})
+        CREATE (o)-[:HAS {order: toInteger(csvLine.add_to_cart_order), reordered: toBoolean(csvLine.reordered)} ]->(p)
