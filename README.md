@@ -52,7 +52,8 @@ Load Data:
         
         USING PERIODIC COMMIT
         LOAD CSV WITH HEADERS FROM 'file:///orders.csv' AS csvLine
-        MERGE (u:User {id: toInteger(csvLine.user_id)});
+        WITH DISTINCT csvLine.user_id AS user_id
+        MERGE (u:User {id: toInteger(user_id)});
 
         USING PERIODIC COMMIT
         LOAD CSV WITH HEADERS FROM 'file:///orders.csv' AS csvLine
@@ -73,8 +74,37 @@ Load Data:
         LOAD CSV WITH HEADERS FROM 'file:///order_products__prior.csv' AS csvLine
         MATCH  (o:Order {id: toInteger(csvLine.order_id)}), (p:Product {id: toInteger(csvLine.product_id)})
         CREATE (o)-[:HAS {order: toInteger(csvLine.add_to_cart_order), reordered: toBoolean(csvLine.reordered)} ]->(p)
+        //Set 32434489 properties, created 32434489 relationships, completed after 2709256 ms.
         
         USING PERIODIC COMMIT
         LOAD CSV WITH HEADERS FROM 'file:///order_products__train.csv' AS csvLine
         MATCH  (o:Order {id: toInteger(csvLine.order_id)}), (p:Product {id: toInteger(csvLine.product_id)})
         CREATE (o)-[:HAS {order: toInteger(csvLine.add_to_cart_order), reordered: toBoolean(csvLine.reordered)} ]->(p)
+
+Generate Files
+--
+
+        http://localhost:7474/v1/instacart/repeat_last_order
+        http://localhost:7474/v1/instacart/top_reordered
+        http://localhost:7474/v1/instacart/top_reordered_boosted_by_cart_order
+
+Ideas
+--
+        For Users:
+        Find the people who constantly reorder the same thing
+        Find the vegetarians (n:Aisle {id:14})
+        Find those alergic to glutten
+        Find those lactose intolerant (n:Aisle {id:91})
+        Find Kosher eaters. (n:Aisle {id:33})
+        Find fresh food only vs processes food
+        Predict Household size
+        Find Ethnic food preferences 	(a:Aisle) WHERE a.id IN [30, 66, 76]
+        Find Dog Owners (n:Aisle {id:40})
+        Find Cat Owners (n:Aisle {id:41})
+        Find People who Drink  (a:Aisle) WHERE a.id IN [28,62, 134]
+        
+        For Products:
+        Find Shelf life
+        Bulk/Heavy products (milk, bulk toilet paper)
+        Dog/Cat food
+        Kid food
