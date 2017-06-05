@@ -201,4 +201,163 @@ public class Instacart {
         return Response.ok(stream).build();
     }
 
+    @GET
+    @Path("/multiple")
+    @Produces("text/plain")
+    public Response multiple( @Context GraphDatabaseService db) throws IOException {
+
+        StreamingOutput stream = os -> {
+            Writer writer = new BufferedWriter(new OutputStreamWriter(os));
+            writer.write("order_id,products\n");
+
+            try (Transaction tx = db.beginTx()) {
+
+                ResourceIterator<Node> orders = db.findNodes(Labels.Order);
+                while (orders.hasNext()) {
+
+                    Node order = orders.next();
+                    if (order.getProperty("set").equals("test")) {
+                        StringJoiner joiner = new StringJoiner(" ");
+                        // work
+                        Relationship ordered = order.getSingleRelationship(RelationshipTypes.ORDERED_BY, Direction.OUTGOING);
+                        Node user = ordered.getEndNode();
+                        ArrayList<Node> products;
+                        if (user.hasLabel(Labels.Repeater)) {
+                            products = Predictions.repeatLastOrder(order);
+                        } else if (user.hasLabel(Labels.Alternator)) {
+                            products = Predictions.alternatingOrder(order);
+                        } else {
+                            products = Predictions.topReorderedBoostedByCartOrder(order);
+                        }
+                        for (Node product : products) {
+                            joiner.add( Long.toString((long)product.getProperty("id")));
+                        }
+                        writer.write( order.getProperty("id") + "," + joiner + "\n");
+                    }
+                }
+                tx.success();
+            }
+            writer.flush();
+        };
+
+        return Response.ok(stream).build();
+    }
+
+    @GET
+    @Path("/train_last_order")
+    @Produces("text/plain")
+    public Response trainLastOrder( @Context GraphDatabaseService db) throws IOException {
+
+        StreamingOutput stream = os -> {
+            Writer writer = new BufferedWriter(new OutputStreamWriter(os));
+            writer.write("user_id, actual, prediction, intersection, precision, recall, f1\n");
+
+            try (Transaction tx = db.beginTx()) {
+
+                ResourceIterator<Node> users = db.findNodes(Labels.User);
+                while (users.hasNext()) {
+
+                    Node user = users.next();
+
+                    Node lastKnownOrder = getLastKnownOrder(user);
+                    ArrayList<Node> lastOrdered = getLastOrdered(lastKnownOrder);
+                    StringJoiner actualJoiner = new StringJoiner(" ");
+                    lastOrdered.forEach(node -> actualJoiner.add( Long.toString((long)node.getProperty("id"))));
+
+                    ArrayList<Node> predicted = Predictions.repeatLastOrder(lastKnownOrder);
+                    HashMap<String, Object> evaluations = Evaluations.all(lastOrdered, predicted);
+
+                    ArrayList<Node> intersection = Evaluations.intersection(lastOrdered, predicted);
+
+                    if ((Double)evaluations.get("f1") >= 0.665) {
+                        user.addLabel(Labels.Repeater);
+                    }
+
+                    StringJoiner predictedJoiner = new StringJoiner(" ");
+                    predicted.forEach(node -> predictedJoiner.add( Long.toString((long)node.getProperty("id"))));
+
+                    StringJoiner intersectionJoiner = new StringJoiner(" ");
+                    intersection.forEach(node -> intersectionJoiner.add( Long.toString((long)node.getProperty("id"))));
+
+                    writer.write(user.getProperty("id") + "," + actualJoiner + "," + predictedJoiner + "," + intersectionJoiner + "," + evaluations.get("precision") + "," + evaluations.get("recall") + "," + evaluations.get("f1") + "\n");
+                }
+
+                tx.success();
+            }
+            writer.flush();
+        };
+
+        return Response.ok(stream).build();
+    }
+
+    @GET
+    @Path("/train_alternating_order")
+    @Produces("text/plain")
+    public Response trainAlternatingOrder( @Context GraphDatabaseService db) throws IOException {
+
+        StreamingOutput stream = os -> {
+            Writer writer = new BufferedWriter(new OutputStreamWriter(os));
+            writer.write("user_id, actual, prediction, intersection, precision, recall, f1\n");
+
+            try (Transaction tx = db.beginTx()) {
+
+                ResourceIterator<Node> users = db.findNodes(Labels.User);
+                while (users.hasNext()) {
+
+                    Node user = users.next();
+
+                    Node lastKnownOrder = getLastKnownOrder(user);
+                    ArrayList<Node> lastOrdered = getLastOrdered(lastKnownOrder);
+                    StringJoiner actualJoiner = new StringJoiner(" ");
+                    lastOrdered.forEach(node -> actualJoiner.add( Long.toString((long)node.getProperty("id"))));
+
+                    ArrayList<Node> predicted = Predictions.alternatingOrder(lastKnownOrder);
+                    HashMap<String, Object> evaluations = Evaluations.all(lastOrdered, predicted);
+
+                    ArrayList<Node> intersection = Evaluations.intersection(lastOrdered, predicted);
+
+                    if ((Double)evaluations.get("f1") >= 0.665) {
+                        user.addLabel(Labels.Alternator);
+                    }
+
+                    StringJoiner predictedJoiner = new StringJoiner(" ");
+                    predicted.forEach(node -> predictedJoiner.add( Long.toString((long)node.getProperty("id"))));
+
+                    StringJoiner intersectionJoiner = new StringJoiner(" ");
+                    intersection.forEach(node -> intersectionJoiner.add( Long.toString((long)node.getProperty("id"))));
+
+                    writer.write(user.getProperty("id") + "," + actualJoiner + "," + predictedJoiner + "," + intersectionJoiner + "," + evaluations.get("precision") + "," + evaluations.get("recall") + "," + evaluations.get("f1") + "\n");
+                }
+
+                tx.success();
+            }
+            writer.flush();
+        };
+
+        return Response.ok(stream).build();
+    }
+
+
+    private ArrayList<Node> getLastOrdered(Node lastKnownOrder) {
+        ArrayList<Node> lastOrdered = new ArrayList<>();
+        for (Relationship r2 : lastKnownOrder.getRelationships(RelationshipTypes.HAS, Direction.OUTGOING)) {
+            Node product = r2.getEndNode();
+            lastOrdered.add(product);
+        }
+        return lastOrdered;
+    }
+    // Check User 204361
+    private Node getLastKnownOrder(Node user) {
+        Node lastKnownOrder = null;
+        for (Relationship r1 : user.getRelationships(Direction.INCOMING, RelationshipTypes.ORDERED_BY)) {
+            lastKnownOrder = r1.getStartNode();
+            if (lastKnownOrder.getDegree(RelationshipTypes.HAS, Direction.OUTGOING) == 0) {
+                return lastKnownOrder.getSingleRelationship(RelationshipTypes.PREV, Direction.OUTGOING).getEndNode();
+            }
+            if (lastKnownOrder.getDegree(RelationshipTypes.PREV, Direction.INCOMING) == 0) {
+                return lastKnownOrder;
+            }
+        }
+        return lastKnownOrder;
+    }
 }

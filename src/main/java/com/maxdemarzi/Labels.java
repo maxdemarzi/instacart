@@ -7,7 +7,7 @@ public enum Labels implements Label {
     Department,
     Order,
     Product,
-    User
-
-
+    User,
+    Repeater,
+    Alternator
 }

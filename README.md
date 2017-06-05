@@ -87,6 +87,13 @@ Generate Files
         http://localhost:7474/v1/instacart/repeat_last_order
         http://localhost:7474/v1/instacart/top_reordered
         http://localhost:7474/v1/instacart/top_reordered_boosted_by_cart_order
+        http://localhost:7474/v1/instacart/multiple   (run classifiers first)
+        
+Classify
+--
+        http://localhost:7474/v1/instacart/train_last_order
+        http://localhost:7474/v1/instacart/train_alternating_order
+        
 
 Ideas
 --
@@ -108,3 +115,9 @@ Ideas
         Bulk/Heavy products (milk, bulk toilet paper)
         Dog/Cat food
         Kid food
+        
+        Clusters:
+        People who order twice a week   < 7 
+        People who order weekly         7-12
+        People who order every two weeks 13-17
+        People who order monthly > 17
